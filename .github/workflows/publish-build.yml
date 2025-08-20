@@ -73,11 +73,12 @@ jobs:
       run: |
         jfrog rt build-add-git
 
-    - name: Add Docker Package to Build
+   - name: Add Docker Package to Build
       run: |
-        echo "inteltask.jfrog.io/${{ env.DOCKER_REPO }}/${{ env.IMAGE_NAME }}:${{ matrix.version }}" > metadata.json
-        jfrog rt build-docker-create ${{ env.DOCKER_REPO }} --image-file metadata.json
-
+        DIGEST=$(docker inspect --format='{{index .RepoDigests 0}}' inteltask.jfrog.io/${{ env.DOCKER_REPO }}/${{ env.IMAGE_NAME }}:${{ matrix.version }} | cut -d'@' -f2)
+        echo "inteltask.jfrog.io/${{ env.DOCKER_REPO }}/${{ env.IMAGE_NAME }}:${{ matrix.version }}@${DIGEST}" > image.txt
+        jfrog rt build-docker-create ${{ env.DOCKER_REPO }} --image-file image.txt
+        
     - name: Publish Build Info
       run: |
         jfrog rt build-publish
