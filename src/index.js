@@ -11,9 +11,19 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 const JWT_SECRET = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.demoSecretKeyForMaskScanner.4v8Qw1Q2w3e4r5t6y7u8i9o0p';
 
-// Middleware
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+// Middleware - SECURITY HARDENED FOR V2
+app.use(express.json({
+  limit: '1mb',                                    // Prevent large payloads
+  strict: true,                                    // Strict JSON parsing
+  type: ['application/json', 'application/*+json'] // Explicit content types
+}));
+
+app.use(express.urlencoded({
+  extended: false,         // from true to false - FIXES CVE-2024-45590
+  limit: '1mb',           // Prevent large payloads
+  parameterLimit: 1000,   // Limit number of parameters
+  type: ['application/x-www-form-urlencoded']  // Explicit content type
+}));
 
 // Basic logging middleware using moment (vulnerable version)
 app.use((req, res, next) => {
@@ -114,4 +124,4 @@ app.listen(PORT, () => {
   console.log(`Started at: ${moment().format('YYYY-MM-DD HH:mm:ss')}`);
 });
 
-module.exports = app; 
+module.exports = app;
