@@ -83,11 +83,10 @@ jobs:
       run: |
         jfrog rt build-publish
         
-    - name: Scan Build (Optional)
-      continue-on-error: true
+    - name: Scan Build with Xray
       run: |
-        jfrog rt build-scan ${{ env.JFROG_CLI_BUILD_NAME }} ${{ env.JFROG_CLI_BUILD_NUMBER }}
-
+        jfrog build-scan ${{ env.JFROG_CLI_BUILD_NAME }} ${{ env.JFROG_CLI_BUILD_NUMBER }}
+        
   summary:
     needs: build-publish-docker
     runs-on: ubuntu-latest
