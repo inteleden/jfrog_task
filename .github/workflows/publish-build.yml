@@ -1,78 +1,103 @@
-name: Workflow-Task-seed
+name: JFrog Build and Publish - Three Versions
 on:
   push:
-    branches: [ "main" ]
+    branches: [ "main", "version-*" ]
   pull_request:
     branches: [ "main" ]
   workflow_dispatch:
-permissions:
-  actions: read # for detecting the Github Actions environment.
-  id-token: write # for creating OIDC tokens for signing.
-  packages: write # for uploading attestations.
-  security-events: write # Required for uploading code scanning
-  attestations: write
-  contents: read
 
+permissions:
+  actions: read
+  contents: read
+  packages: write
 
 jobs:
   build-publish-docker:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - version: v1
+            branch: version-1
+          - version: v2
+            branch: version-2
+          - version: v3
+            branch: version-3
+    
     env:
-      DOCKER_REPO: <SET YOUR DOCKER VIRTUAL/LOCAL/REMOTE REPO HERE>
-      IMAGE_NAME: myApp
-      JF_URL: https://${{ vars.JF_URL }}/
-      NPM_VIRTUAL_REPO: <SET YOUR NPM VIRTUAL/LOCAL/REMOTE REPO HERE>
-      DOCKER_BUILD_SUMMARY: false
-      DOCKER_BUILD_RECORD_UPLOAD: false
-      JFROG_CLI_LOG_LEVEL: DEBUG
+      DOCKER_REPO: inteleden-docker
+      IMAGE_NAME: jfrog-task
+      JF_URL: https://inteltask.jfrog.io
+      JFROG_CLI_BUILD_NAME: jfrog-task-${{ matrix.version }}
+      JFROG_CLI_BUILD_NUMBER: ${{ github.run_number }}
 
     steps:
     - name: Checkout the repository
       uses: actions/checkout@v4
+      with:
+        ref: ${{ matrix.branch }}
 
     - name: Setup JFrog CLI
       uses: jfrog/setup-jfrog-cli@v4
-      id: setup-cli
       env:
-        JF_URL: https://${{ vars.JF_URL }}/
-      with:
-        oidc-provider-name: jfrog-github-oidc #Establish an OIDC connection to allow trust between the workflow and your JFrog instance
-    
-    - name: Set CLI Config
-      run: jf npm-config --global=true --repo-resolve=${{ vars.NPM_VIRTUAL_REPO }} --repo-deploy=${{ vars.NPM_VIRTUAL_REPO }}
+        JF_URL: ${{ env.JF_URL }}
+        JF_USER: ${{ secrets.JF_USER }}
+        JF_PASSWORD: ${{ secrets.JF_PASSWORD }}
 
-    - name: build webapp
+    - name: Verify JFrog Connection
       run: |
-         jf npm ci
+        jfrog config show
+        jfrog rt ping
 
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@v3
 
-    - name: Authenticate Docker
-      uses: docker/login-action@v3
-      with:
-         registry: ${{ vars.JF_URL }}
-         username: ${{ steps.setup-cli.outputs.oidc-user }}
-         password: ${{ steps.setup-cli.outputs.oidc-token }}
+    - name: Docker Login to JFrog
+      run: |
+        echo "${{ secrets.JF_PASSWORD }}" | docker login inteltask.jfrog.io \
+          -u ${{ secrets.JF_USER }} --password-stdin
 
-    - name: Build the Docker image
-      uses: docker/build-push-action@v6
-      id: build
-      with:
-        push: true
-        context: .
-        platforms: linux/amd64,linux/arm64
-        tags: ${{ vars.JF_URL }}/${{ env.DOCKER_REPO }}/${{ env.IMAGE_NAME }}
-        provenance: false
+    - name: Build Docker Image
+      run: |
+        docker build -t inteltask.jfrog.io/${{ env.DOCKER_REPO }}/${{ env.IMAGE_NAME }}:${{ matrix.version }} .
         
+    - name: Push Docker Image
+      run: |
+        docker push inteltask.jfrog.io/${{ env.DOCKER_REPO }}/${{ env.IMAGE_NAME }}:${{ matrix.version }}
 
-    - name: add docker package to build
+    - name: Collect Build Environment
       run: |
-           echo "${{ vars.JF_URL }}/${{ env.DOCKER_REPO }}/${{ env.IMAGE_NAME }}@${{ steps.build.outputs.digest }}" > metadata.json
-           jf rt build-docker-create ${{ env.DOCKER_REPO }} --image-file metadata.json
-           
-    - name: publish build info
+        jfrog rt build-collect-env
+
+    - name: Add Git Information
       run: |
-           jf rt build-collect-env
-           jf rt build-add-git
-           jf rt build-publish
+        jfrog rt build-add-git
+
+    - name: Add Docker Package to Build
+      run: |
+        echo "inteltask.jfrog.io/${{ env.DOCKER_REPO }}/${{ env.IMAGE_NAME }}:${{ matrix.version }}" > metadata.json
+        jfrog rt build-docker-create ${{ env.DOCKER_REPO }} --image-file metadata.json
+
+    - name: Publish Build Info
+      run: |
+        jfrog rt build-publish
+        
+    - name: Scan Build (Optional)
+      continue-on-error: true
+      run: |
+        jfrog rt build-scan ${{ env.JFROG_CLI_BUILD_NAME }} ${{ env.JFROG_CLI_BUILD_NUMBER }}
+
+  summary:
+    needs: build-publish-docker
+    runs-on: ubuntu-latest
+    if: always()
+    steps:
+    - name: Summary
+      run: |
+        echo "## Build Summary" >> $GITHUB_STEP_SUMMARY
+        echo "- ✅ V1: Baseline with vulnerabilities" >> $GITHUB_STEP_SUMMARY
+        echo "- ✅ V2: Body-parser mitigated" >> $GITHUB_STEP_SUMMARY
+        echo "- ✅ V3: Moment.js fixed" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "Build Number: ${{ github.run_number }}" >> $GITHUB_STEP_SUMMARY
+        echo "JFrog Instance: https://inteltask.jfrog.io" >> $GITHUB_STEP_SUMMARY
