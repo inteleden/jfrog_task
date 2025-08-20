@@ -73,7 +73,7 @@ jobs:
       run: |
         jfrog rt build-add-git
 
-   - name: Add Docker Package to Build
+    - name: Add Docker Package to Build
       run: |
         DIGEST=$(docker inspect --format='{{index .RepoDigests 0}}' inteltask.jfrog.io/${{ env.DOCKER_REPO }}/${{ env.IMAGE_NAME }}:${{ matrix.version }} | cut -d'@' -f2)
         echo "inteltask.jfrog.io/${{ env.DOCKER_REPO }}/${{ env.IMAGE_NAME }}:${{ matrix.version }}@${DIGEST}" > image.txt
