@@ -95,9 +95,9 @@ jobs:
     - name: Summary
       run: |
         echo "## Build Summary" >> $GITHUB_STEP_SUMMARY
-        echo "- ✅ V1: Baseline with vulnerabilities" >> $GITHUB_STEP_SUMMARY
-        echo "- ✅ V2: Body-parser mitigated" >> $GITHUB_STEP_SUMMARY
-        echo "- ✅ V3: Moment.js fixed" >> $GITHUB_STEP_SUMMARY
+        echo "- V1: Baseline with vulnerabilities" >> $GITHUB_STEP_SUMMARY
+        echo "- V2: Body-parser mitigated" >> $GITHUB_STEP_SUMMARY
+        echo "- V3: Moment.js fixed" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
         echo "Build Number: ${{ github.run_number }}" >> $GITHUB_STEP_SUMMARY
         echo "JFrog Instance: https://inteltask.jfrog.io" >> $GITHUB_STEP_SUMMARY
